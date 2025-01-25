@@ -169,7 +169,7 @@ def candidates(arbol):
 
 def remove_empty_states(lista_nodos):
     """Filters out nodes with an empty state."""
-    return [n for n in lista_nodos if get_state(n) != 'vacio']
+    return [n for n in lista_nodos if get_state(n) != 'empty']
 
 # Gensym to generate unique identifiers for nodes
 def gensym():
@@ -318,21 +318,39 @@ def build_node(ident, estado, id_padre, op, info):
     return [ident, estado, id_padre, op] + info
 
 def expand_node(node, operators, funcion):
-    """Expand a new node for the operators."""
-    st = get_state(node)
-    id_node = ident(node)
+    """
+    Expand a new node for the operators.
+
+    Args:
+        node: The current node to expand. It is the father node.
+        operators: A list or collection of operators used to determine the expansion logic.
+        funcion: A callable or function that defines how the node should be processed or expanded.
+
+    Returns:
+        A list or collection of expanded nodes, depending on the logic implemented.
+    """
+    # Prepare the data from parent node.
+    parent_state = get_state(node)
+    parent_id = ident(node)
     info_node = info(node)
-    new_nodes = []
+    parent_operator = get_operator(node)
+    generated_nodes = []
 
     for op in operators:
-        new_symbol = gensym()
-        ff = cadr(op)
-        ffapp = ff(st, info_node)
-        new_nodes.append(build_node(
-            new_symbol, ffapp, id_node, car(op), funcion([st, info_node], ffapp, car(op))
-        ))
+        if (parent_operator == car(op)):
+            generated_nodes.append(['empty'])
+        else:
+            # Get new identifier for the generated node
+            generated_node_identifier = gensym()
+            # Get the function to apply for current operator
+            function_to_apply = cadr(op)
+            # Generate new state
+            generated_state = function_to_apply(parent_state, info_node)
+            generated_nodes.append(build_node(
+                generated_node_identifier, generated_state, parent_id, car(op), funcion([parent_state, info_node], generated_state, car(op))
+            ))
 
-    return remove_empty_states(new_nodes)
+    return remove_empty_states(generated_nodes)
 
 # Node-related functions
 
@@ -346,6 +364,9 @@ def get_state(nodo):
     # Unwrap if the node is accidentally nested
     if isinstance(nodo, list) and len(nodo) == 1:
         nodo = nodo[0]
+    # After unwrapping, if we received an empty node, we raise 'empty'
+    if nodo == 'empty':
+      return 'empty'
     if not isinstance(nodo, list):
         print(f"Error: node is not a list, node: {nodo}, type: {type(nodo)}")
         raise ValueError(f"Node is not a list: {nodo}")
