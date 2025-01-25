@@ -1,6 +1,10 @@
 initial_state:
+  - 1
   - 4
   - 3
   - 2
-  - 1
-debug_level: 'info'
+# Debug level: Possible values
+# - 'none' : No debugging at all
+# - 'info' : Only prints the expanded nodes
+# - 'debug' : Prints all debug info
+debug_level: 'none'

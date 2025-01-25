@@ -1,6 +1,9 @@
 # Rompecabezas lineal
 
-Hold a lineal puzzle (breadth-first search algorithm)
+Resolve a lineal puzzle using one of following strategies:
+
+- Breadth-first search algorithm
+- Depth-first search algorithm
 
 Based on UOC module _Resolucion de problemas y búsqueda_
 
@@ -28,3 +31,8 @@ To execute it from console:
 > ``` python3 rompecabezas_lineal ```
 
 Depending upon the node entered, it will take less or more time to expand the tree. [1,2,3,4] will be automatic and [4,3,2,1] is the one which takes more time and expands more node.
+
+User has to provide which strategy to use:
+
+- Breadth-first search algorithm
+- Depth-first search algorithm

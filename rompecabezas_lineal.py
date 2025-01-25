@@ -106,11 +106,11 @@ def info_print(message):
         print(message)
 
 # Definition of the problem
-def problema(initial_state):
+def problem(initial_state):
     """Defines the problem structure including initial state, operators, and goal test."""
     return [
-        rl_operadores(),
-        (lambda info_nodo_padre, estado, nombre_operador: []),  # Additional information
+        rl_operators(),
+        (lambda info_node_padre, estado, nombre_operador: []),  # Additional information
         initial_state,  # Initial state taken from settings
         (lambda estado: estado == [1, 2, 3, 4]),  # Objective function
         (lambda estado: [])  # Additional information associated to the state
@@ -147,29 +147,29 @@ def mov_id(estado, info=None):
 
     return [car(estado), cadr(estado), cadddr(estado), caddr(estado)]
 
-def rl_operadores():
+def rl_operators():
     """Defines the list of operators available to the system."""
     return [['ie', mov_ie], ['ic', mov_ic], ['id', mov_id]]
 
-def rl_funcion_objetivo(estado):
+def rl_objective_function(estado):
     """Checks if the given state is the solution."""
     return estado == [1, 2, 3, 4]
 
-def selecciona_nodo(arbol):
+def select_node(arbol):
     """Selects the next node to expand from the tree."""
-    nodo = car(arbol[0])  # Select from `nodos_a_expandir`
-    debug_print(f"Debug: selecciona_nodo - arbol: {arbol}, nodo seleccionado: {nodo}")
+    nodo = car(arbol[0])  # Select from `nodes_to_expand`
+    debug_print(f"Debug: select_node - arbol: {arbol}, nodo seleccionado: {nodo}")
     if isinstance(nodo, list) and len(nodo) == 1:
         return nodo[0]  # Unwrap single-node lists
     return nodo
 
-def candidatos(arbol):
+def candidates(arbol):
     """Checks if there are candidates left in the tree for expansion."""
     return bool(arbol)
 
-def eliminar_estados_vacios(lista_nodos):
+def remove_empty_states(lista_nodos):
     """Filters out nodes with an empty state."""
-    return [n for n in lista_nodos if estado(n) != 'vacio']
+    return [n for n in lista_nodos if get_state(n) != 'vacio']
 
 # Gensym to generate unique identifiers for nodes
 def gensym():
@@ -179,44 +179,83 @@ def gensym():
 gensym.counter = 0
 
 # Core functionality
-def busqueda(problema, estrategia, arbol):
+def search(problem, estrategia, arbol):
     """Performs a search to find the solution to the problem."""
-    if not candidatos(arbol):
+    if not candidates(arbol):
         return ['There is no solution']
 
-    nodo = selecciona_nodo(arbol)
-    nuevo_arbol = elimina_seleccion(arbol)
+    nodo = select_node(arbol)
+    nuevo_arbol = eliminate_selection(arbol)
 
-    if solucion(problema, nodo):
-        return camino(arbol, nodo)
+    if solution(problem, nodo):
+        return get_path(arbol, nodo)
 
-    return busqueda(
-        problema,
+    return search(
+        problem,
         estrategia,
-        expande_arbol(problema, estrategia, nuevo_arbol, nodo)
+        expand_tree(problem, estrategia, nuevo_arbol, nodo)
     )
 
-def hacer_busqueda(problema, estrategia):
+# Define strategies
+
+def rl_strategy_breadth(queue, new_elements):
+    """
+    Strategy function for breadth-first search.
+    
+    Combines the current queue (queue) with new elements (new_elements).
+    Only performs the operation if both inputs are lists.
+    
+    Parameters:
+    - queue: list, the current queue.
+    - new_elements: list, new elements to add to the queue.
+    
+    Returns:
+    - list: Combined list of cola and new_elements, or just queue if inputs are invalid.
+    """
+    if isinstance(queue, list) and isinstance(new_elements, list):
+        return queue + new_elements
+    return queue
+
+def rl_strategy_depth(queue, new_elements):
+    """
+    Strategy function for depth-first search.
+    
+    Combines the current queue (queue) with new elements (new_elements).
+    Only performs the operation if both inputs are lists.
+    
+    Parameters:
+    - queue: list, the current queue.
+    - new_elements: list, new elements to add to the queue.
+    
+    Returns:
+    - list: Combined list of new_elements and queue, or just new_elements if inputs are invalid.
+    """
+    if isinstance(queue, list) and isinstance(new_elements, list):
+        return new_elements + queue
+    return queue
+
+
+def perform_search(problem, estrategia):
     """Starts the search process with the given strategy."""
-    return busqueda(problema, estrategia, arbol_inicial(estado_inicial(problema), info_inicial(problema)))
+    return search(problem, estrategia, initial_tree(estado_inicial(problem), initial_info(problem)))
 
-def solucion(problema, nodo):
+def solution(problem, nodo):
     """Checks if a node satisfies the goal condition."""
-    ff = funcion_objetivo(problema)
-    return ff(estado(nodo))
+    ff = objective_function(problem)
+    return ff(get_state(nodo))
 
-def camino(arbol, nodo):
+def get_path(arbol, nodo):
     """Constructs the solution path from the initial state to the current node."""
-    if not id_padre(nodo):
+    if not get_id_father(nodo):
         return []
 
-    lp = camino(arbol, nodo_arbol(id_padre(nodo), arbol))
-    return lp + [operador(nodo)]
+    lp = get_path(arbol, nodo_arbol(get_id_father(nodo), arbol))
+    return lp + [get_operator(nodo)]
 
-def nodo_arbol(id_nodo, arbol):
+def nodo_arbol(id_node, arbol):
     """Finds a node in the tree by its identifier."""
     def check_nodo(nodo):
-        return ident(nodo) == id_nodo
+        return ident(nodo) == id_node
 
     a_expandir = member_if(check_nodo, arbol[0])
     if a_expandir:
@@ -224,53 +263,53 @@ def nodo_arbol(id_nodo, arbol):
 
     return find_if(check_nodo, arbol[1])
 
-def expande_arbol(problema, estrategia, arbol, nodo):
+def expand_tree(problem, estrategia, arbol, nodo):
     """Expands the tree by adding new nodes based on available operators."""
-    debug_print(f"Debug: expande_arbol - Initial tree: {arbol}, node expanded: {nodo}")
-    nuevos_nodos_a_expandir = expande_nodo(
+    debug_print(f"Debug: expand_tree - Initial tree: {arbol}, node expanded: {nodo}")
+    new_nodes_to_expand = expand_node(
         nodo,
-        operadores(problema),
-        funcion_info_adicional(problema)
+        operators(problem),
+        funtion_aditional_info(problem)
     )
-    for nuevo_nodo in nuevos_nodos_a_expandir:
+    for nuevo_nodo in new_nodes_to_expand:
         info_print(f"Info: Adding node {nuevo_nodo} to the tree.")
         save_node_to_file(nuevo_nodo)  # Save the node to the output file
 
     # Ensure new nodes are appended to the appropriate part of the tree
-    nuevo_arbol = construye_arbol(arbol, estrategia, nodo, nuevos_nodos_a_expandir)
-    debug_print(f"Debug: expande_arbol - tree updated: {nuevo_arbol}")
+    nuevo_arbol = build_tree(arbol, estrategia, nodo, new_nodes_to_expand)
+    debug_print(f"Debug: expand_tree - tree updated: {nuevo_arbol}")
     return nuevo_arbol
 
-def construye_arbol(arbol, estrategia, nodo_expandido, nuevos_nodos_a_expandir):
+def build_tree(arbol, estrategia, expanded_node, new_nodes_to_expand):
     """Constructs the tree with the expanded nodes."""
-    debug_print(f"Debug: construye_arbol - tree received: {arbol}")
-    nodos_a_expandir = car(arbol) or []
-    debug_print(f"Debug: construye_arbol - nodos_a_expandir: {nodos_a_expandir}")
-    lista_actualizada = estrategia(nodos_a_expandir, nuevos_nodos_a_expandir)
-    debug_print(f"Debug: construye_arbol - lista_actualizada: {lista_actualizada}")
+    debug_print(f"Debug: build_tree - tree received: {arbol}")
+    nodes_to_expand = car(arbol) or []
+    debug_print(f"Debug: build_tree - nodes_to_expand: {nodes_to_expand}")
+    lista_actualizada = estrategia(nodes_to_expand, new_nodes_to_expand)
+    debug_print(f"Debug: build_tree - lista_actualizada: {lista_actualizada}")
     list_nodes_previously_expanded = cadr(arbol) or []
-    list_nodes_already_expanded = list_nodes_previously_expanded + [nodo_expandido]
+    list_nodes_already_expanded = list_nodes_previously_expanded + [expanded_node]
 
     arbol_actualizado = [lista_actualizada, list_nodes_already_expanded]
-    debug_print(f"Debug: construye_arbol - tree updated: {arbol_actualizado}")
+    debug_print(f"Debug: build_tree - tree updated: {arbol_actualizado}")
     return arbol_actualizado
 
-def elimina_seleccion(arbol):
+def eliminate_selection(arbol):
     """Removes the selected node from the list of nodes to expand."""
     list_nodes_to_expand = arbol[0]
     del list_nodes_to_expand[0]
 
     return [list_nodes_to_expand, arbol[1]]
 
-def arbol_inicial(estado, info):
+def initial_tree(estado, info):
     """Initializes the tree with the starting state."""
     infres = info(estado)
     if not isinstance(infres, list):
         infres = [infres]  # Ensure it's a list
-    nodo = construye_nodo(gensym(), estado, None, None, infres)
+    nodo = build_node(gensym(), estado, None, None, infres)
     return [[nodo], []]
 
-def construye_nodo(ident, estado, id_padre, op, info):
+def build_node(ident, estado, id_padre, op, info):
     """Construct a new node from state, father identifier, operation and information."""
     if not isinstance(info, list):
         raise TypeError(f"'info' must be a list, got {type(info).__name__}")
@@ -278,22 +317,22 @@ def construye_nodo(ident, estado, id_padre, op, info):
         raise ValueError(f"'estado' must be a list, got {type(estado).__name__}")
     return [ident, estado, id_padre, op] + info
 
-def expande_nodo(nodo, operadores, funcion):
+def expand_node(node, operators, funcion):
     """Expand a new node for the operators."""
-    st = estado(nodo)
-    id_nodo = ident(nodo)
-    info_nodo = info(nodo)
-    nuevos_nodos = []
+    st = get_state(node)
+    id_node = ident(node)
+    info_node = info(node)
+    new_nodes = []
 
-    for op in operadores:
-        nuevo_simbolo = gensym()
+    for op in operators:
+        new_symbol = gensym()
         ff = cadr(op)
-        ffapp = ff(st, info_nodo)
-        nuevos_nodos.append(construye_nodo(
-            nuevo_simbolo, ffapp, id_nodo, car(op), funcion([st, info_nodo], ffapp, car(op))
+        ffapp = ff(st, info_node)
+        new_nodes.append(build_node(
+            new_symbol, ffapp, id_node, car(op), funcion([st, info_node], ffapp, car(op))
         ))
 
-    return eliminar_estados_vacios(nuevos_nodos)
+    return remove_empty_states(new_nodes)
 
 # Node-related functions
 
@@ -301,7 +340,7 @@ def ident(nodo):
     """Returns the identifier of a node."""
     return nodo[0]
 
-def estado(nodo):
+def get_state(nodo):
     """Gets the status of the node."""
     debug_print(f"Debug: estado - nodo recibido: {nodo}")
     # Unwrap if the node is accidentally nested
@@ -314,11 +353,11 @@ def estado(nodo):
         raise ValueError(f"Node has insufficient elements: {nodo}")
     return nodo[1]
 
-def id_padre(nodo):
+def get_id_father(nodo):
     """Get the identifier of the father."""
     return nodo[2]
 
-def operador(nodo):
+def get_operator(nodo):
     """Get the operator applied to the node."""
     return nodo[3]
 
@@ -327,25 +366,25 @@ def info(nodo):
     return nodo[4:]
 
 # Problem-related functions.
-def operadores(problema):
-    """Get operadores from problem."""
-    return problema[0]
+def operators(problem):
+    """Get operators from problem."""
+    return problem[0]
 
-def funcion_info_adicional(problema):
+def funtion_aditional_info(problem):
     """Get additional information from problem."""
-    return problema[1]
+    return problem[1]
 
-def estado_inicial(problema):
+def estado_inicial(problem):
     """Get initial state from problem."""
-    return problema[2]
+    return problem[2]
 
-def funcion_objetivo(problema):
+def objective_function(problem):
     """Get objective function from problem."""
-    return problema[3]
+    return problem[3]
 
-def info_inicial(problema):
+def initial_info(problem):
     """Get initial information from problem."""
-    return problema[4]
+    return problem[4]
 
 if __name__ == "__main__":
     # Initialize global variables
@@ -355,15 +394,39 @@ if __name__ == "__main__":
         print(e)
         exit(1)  # Exit if initialization fails
 
+    # Get user input for the search strategy
+    print("Please select the \033[1mSearch strategy\033[0m")
+    print("1 - \033[3mBreadth-first search algorithm\033[0m")
+    print("2 - \033[3mDepth-first search algorithm\033[0m")
+    print("X - \033[3mExit application\033[0m")
+
+    while True:  # Loop until valid input is provided or the user exits
+        chosen_strategy = input("Enter your selection, please: ").strip().lower()
+
+        if chosen_strategy == "1":
+            strategy = rl_strategy_breadth
+            print("Strategy set to Breadth-First Search.")
+            break  # Exit the loop after valid input
+        elif chosen_strategy == "2":
+            strategy = rl_strategy_depth
+            print("Strategy set to Depth-First Search.")
+            break  # Exit the loop after valid input
+        elif chosen_strategy == "x":
+            print("Exiting the application. Goodbye!")
+            exit()  # Terminate the program
+        else:
+            print("Input value not correct, please try again.")
+
+
     # Measure processing time
     start_time = time.time()
     # Initialize problem with validated settings
-    prob = problema(initial_state)
+    prob = problem(initial_state)
 
     # Perform search (existing logic assumed here)
-    resultado = hacer_busqueda(
+    resultado = perform_search(
         prob,
-        lambda cola, nuevos: cola + nuevos if isinstance(cola, list) and isinstance(nuevos, list) else cola
+        strategy
     )
 
     # Calculate elapsed time
