@@ -6,8 +6,10 @@ import yaml
 
 # Global variable to store nodes
 nodes_expanded = []
-debug_level = 'none'
+DEBUG_LEVEL = 'none'
 initial_state = [1, 2, 3, 4]
+limit = 6
+STRATEGY = 'breadth'
 
 def initialize_global_variables(settings_file):
     """
@@ -16,7 +18,7 @@ def initialize_global_variables(settings_file):
     :param settings_file: Path to the settings YAML file.
     :raises ValueError: If any validation fails.
     """
-    global debug_level, initial_state
+    global DEBUG_LEVEL, initial_state
 
     # Load settings from the YAML file
     settings = load_settings(settings_file)
@@ -30,17 +32,17 @@ def initialize_global_variables(settings_file):
     if sorted(initial_state) != [1, 2, 3, 4]:
         raise ValueError("Error: 'initial_state' must contain exactly the numbers 1, 2, 3, and 4.")
     
-    # Validate and set `debug_level`
+    # Validate and set `DEBUG_LEVEL`
     if 'debug_level' not in settings:
         raise ValueError("Error: 'debug_level' is missing in the settings file.")
-    debug_level = settings['debug_level']
+    DEBUG_LEVEL = settings['debug_level']
     valid_debug_levels = ['none', 'info', 'debug', 'warning', 'error']
-    if debug_level not in valid_debug_levels:
+    if DEBUG_LEVEL not in valid_debug_levels:
         raise ValueError(f"Error: 'debug_level' must be one of {valid_debug_levels}.")
 
     # Output initialization status
-    print(f"Debug level set to: {debug_level}")
-    print(f"Initial state set to: {initial_state}")
+    print(f"Debug level set to: {DEBUG_LEVEL}")
+    print(f"Initial state set to: {initial_state}\n")
 
 
 # Accessor functions for list elements (standardized for Python indexing)
@@ -97,24 +99,38 @@ def save_node_to_file(node):
 
 def debug_print(message):
     """Prints a debug message if the debug level is 'info'."""
-    if debug_level == 'debug':
+    if DEBUG_LEVEL == 'debug':
         print(message)
 
 def info_print(message):
     """Prints a debug message if the debug level is 'info'."""
-    if debug_level == 'info':
+    if DEBUG_LEVEL == 'info':
         print(message)
 
 # Definition of the problem
 def problem(initial_state):
     """Defines the problem structure including initial state, operators, and goal test."""
-    return [
-        rl_operators(),
-        (lambda info_node_padre, estado, nombre_operador: []),  # Additional information
-        initial_state,  # Initial state taken from settings
-        (lambda estado: estado == [1, 2, 3, 4]),  # Objective function
-        (lambda estado: [])  # Additional information associated to the state
-    ]
+    global STRATEGY
+    # Depending on strategy, set additional information
+    if (STRATEGY == 'breadth'):
+        return [
+            rl_operators_breadth(),
+            (lambda parent_state, info_node_parent, state, operator_name: []),  # Additional information
+            initial_state,  # Initial state taken from settings
+            (lambda estado: estado == [1, 2, 3, 4]),  # Objective function
+            (lambda estado: [])  # Additional information associated to the state
+        ]
+    else:
+        def auxf(node_parent, info_node_parent, generated_state, operator_name):
+            return [generated_state, 1 + cadr(info_node_parent)]
+
+        return [
+            rl_operators_depth(),
+            auxf,  # Additional information
+            initial_state,  # Initial state taken from settings
+            (lambda estado: estado == [1, 2, 3, 4]),  # Objective function
+            (lambda estado: [estado, 0])  # Additional information associated to the state
+        ]
 
 def member_if(predicate, lst):
     """Returns the first item in `lst` for which `predicate` is True. If no such item exists, returns None."""
@@ -132,24 +148,56 @@ def find_if(predicate, lst):
 def mov_ie(estado, info=None):
     """Performs a left exchange on the state."""
     debug_print(f"Left exchange: {cadr(estado)} - {car(estado)} - {caddr(estado)} - {cadddr(estado)}")
-
     return [cadr(estado), car(estado), caddr(estado), cadddr(estado)]
 
 def mov_ic(estado, info=None):
     """Performs a central exchange on the state."""
     debug_print(f"Central Exchange: {car(estado)} - {caddr(estado)} - {cadr(estado)} - {cadddr(estado)}")
-
     return [car(estado), caddr(estado), cadr(estado), cadddr(estado)]
 
 def mov_id(estado, info=None):
     """Performs a right exchange on the state."""
     debug_print(f"Right Exchange: {car(estado)} - {cadr(estado)} - {cadddr(estado)} - {caddr(estado)}")
-
     return [car(estado), cadr(estado), cadddr(estado), caddr(estado)]
 
-def rl_operators():
+def rl_operators_breadth():
     """Defines the list of operators available to the system."""
     return [['ie', mov_ie], ['ic', mov_ic], ['id', mov_id]]
+
+def mov_ie_depth(estado, info=None):
+    """Performs a left exchange on the state."""
+    global limit
+    if (cadr(info) < limit):
+        debug_print(f"Left exchange: {cadr(estado)} - {car(estado)} - {caddr(estado)} - {cadddr(estado)}")
+
+        return [cadr(estado), car(estado), caddr(estado), cadddr(estado)]
+    else:
+        return 'empty'
+          
+
+def mov_ic_depth(estado, info=None):
+    """Performs a central exchange on the state."""
+    global limit
+    if (cadr(info) < limit):
+        debug_print(f"Central Exchange: {car(estado)} - {caddr(estado)} - {cadr(estado)} - {cadddr(estado)}")
+
+        return [car(estado), caddr(estado), cadr(estado), cadddr(estado)]
+    else:
+        return 'empty'
+
+def mov_id_depth(estado, info=None):
+    """Performs a right exchange on the state."""
+    global limit
+    if (cadr(info) < limit):
+        debug_print(f"Right Exchange: {car(estado)} - {cadr(estado)} - {cadddr(estado)} - {caddr(estado)}")
+
+        return [car(estado), cadr(estado), cadddr(estado), caddr(estado)]
+    else:
+        return 'empty'
+
+def rl_operators_depth():
+    """Defines the list of operators available to the system."""
+    return [['ie', mov_ie_depth], ['ic', mov_ic_depth], ['id', mov_id_depth]]
 
 def rl_objective_function(estado):
     """Checks if the given state is the solution."""
@@ -313,6 +361,7 @@ def build_node(ident, estado, id_padre, op, info):
     """Construct a new node from state, father identifier, operation and information."""
     if not isinstance(info, list):
         raise TypeError(f"'info' must be a list, got {type(info).__name__}")
+    if (estado == 'empty'): return ['empty']
     if not isinstance(estado, list):
         raise ValueError(f"'estado' must be a list, got {type(estado).__name__}")
     return [ident, estado, id_padre, op] + info
@@ -332,7 +381,7 @@ def expand_node(node, operators, funcion):
     # Prepare the data from parent node.
     parent_state = get_state(node)
     parent_id = ident(node)
-    info_node = info(node)
+    parent_info_node = info(node)
     parent_operator = get_operator(node)
     generated_nodes = []
 
@@ -345,9 +394,9 @@ def expand_node(node, operators, funcion):
             # Get the function to apply for current operator
             function_to_apply = cadr(op)
             # Generate new state
-            generated_state = function_to_apply(parent_state, info_node)
+            generated_state = function_to_apply(parent_state, parent_info_node)
             generated_nodes.append(build_node(
-                generated_node_identifier, generated_state, parent_id, car(op), funcion([parent_state, info_node], generated_state, car(op))
+                generated_node_identifier, generated_state, parent_id, car(op), funcion(parent_state, parent_info_node, generated_state, car(op))
             ))
 
     return remove_empty_states(generated_nodes)
@@ -409,6 +458,8 @@ def initial_info(problem):
 
 if __name__ == "__main__":
     # Initialize global variables
+    global strategy
+
     try:
         initialize_global_variables("data/input/settings.yml")
     except ValueError as e:
@@ -425,18 +476,20 @@ if __name__ == "__main__":
         chosen_strategy = input("Enter your selection, please: ").strip().lower()
 
         if chosen_strategy == "1":
-            strategy = rl_strategy_breadth
-            print("Strategy set to Breadth-First Search.")
+            function_strategy = rl_strategy_breadth
+            STRATEGY = 'breadth'
+            print("\nStrategy set to Breadth-First Search.\n")
             break  # Exit the loop after valid input
         elif chosen_strategy == "2":
-            strategy = rl_strategy_depth
-            print("Strategy set to Depth-First Search.")
+            function_strategy = rl_strategy_depth
+            STRATEGY = 'depth'
+            print("\nStrategy set to Depth-First Search.\n")
             break  # Exit the loop after valid input
         elif chosen_strategy == "x":
-            print("Exiting the application. Goodbye!")
+            print("\nExiting the application. Goodbye!\n")
             exit()  # Terminate the program
         else:
-            print("Input value not correct, please try again.")
+            print("\nInput value not correct, please try again.\n")
 
 
     # Measure processing time
@@ -447,7 +500,7 @@ if __name__ == "__main__":
     # Perform search (existing logic assumed here)
     resultado = perform_search(
         prob,
-        strategy
+        function_strategy
     )
 
     # Calculate elapsed time
