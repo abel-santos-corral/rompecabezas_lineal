@@ -8,7 +8,7 @@ import yaml
 nodes_expanded = []
 DEBUG_LEVEL = 'none'
 initial_state = [1, 2, 3, 4]
-limit = 6
+LIMIT = 6
 STRATEGY = 'breadth'
 
 def initialize_global_variables(settings_file):
@@ -31,7 +31,7 @@ def initialize_global_variables(settings_file):
         raise ValueError("Error: 'initial_state' must be a list with exactly 4 elements.")
     if sorted(initial_state) != [1, 2, 3, 4]:
         raise ValueError("Error: 'initial_state' must contain exactly the numbers 1, 2, 3, and 4.")
-    
+
     # Validate and set `DEBUG_LEVEL`
     if 'debug_level' not in settings:
         raise ValueError("Error: 'debug_level' is missing in the settings file.")
@@ -79,7 +79,7 @@ def save_node_to_file(node):
 
     # Convert the node to the required plain text format
     node_text = f'"{node[0]}", "{node[1]}", "{node[2]}", "{node[3]}"'
-    
+
     # Append the formatted node to the list
     nodes_expanded.append(node_text)
 
@@ -108,15 +108,14 @@ def info_print(message):
         print(message)
 
 # Definition of the problem
-def problem(initial_state):
+def problem(problem_initial_state):
     """Defines the problem structure including initial state, operators, and goal test."""
-    global STRATEGY
     # Depending on strategy, set additional information
-    if (STRATEGY == 'breadth'):
+    if STRATEGY == 'breadth':
         return [
             rl_operators_breadth(),
             (lambda parent_state, info_node_parent, state, operator_name: []),  # Additional information
-            initial_state,  # Initial state taken from settings
+            problem_initial_state,  # Initial state taken from settings
             (lambda estado: estado == [1, 2, 3, 4]),  # Objective function
             (lambda estado: [])  # Additional information associated to the state
         ]
@@ -127,7 +126,7 @@ def problem(initial_state):
         return [
             rl_operators_depth(),
             auxf,  # Additional information
-            initial_state,  # Initial state taken from settings
+            problem_initial_state,  # Initial state taken from settings
             (lambda estado: estado == [1, 2, 3, 4]),  # Objective function
             (lambda estado: [estado, 0])  # Additional information associated to the state
         ]
@@ -145,17 +144,17 @@ def find_if(predicate, lst):
     return next((item for item in lst if predicate(item)), None)
 
 # Modeling system actions
-def mov_ie(estado, info=None):
+def mov_ie(estado, info_node=None):
     """Performs a left exchange on the state."""
     debug_print(f"Left exchange: {cadr(estado)} - {car(estado)} - {caddr(estado)} - {cadddr(estado)}")
     return [cadr(estado), car(estado), caddr(estado), cadddr(estado)]
 
-def mov_ic(estado, info=None):
+def mov_ic(estado, info_node=None):
     """Performs a central exchange on the state."""
     debug_print(f"Central Exchange: {car(estado)} - {caddr(estado)} - {cadr(estado)} - {cadddr(estado)}")
     return [car(estado), caddr(estado), cadr(estado), cadddr(estado)]
 
-def mov_id(estado, info=None):
+def mov_id(estado, info_node=None):
     """Performs a right exchange on the state."""
     debug_print(f"Right Exchange: {car(estado)} - {cadr(estado)} - {cadddr(estado)} - {caddr(estado)}")
     return [car(estado), cadr(estado), cadddr(estado), caddr(estado)]
@@ -164,31 +163,28 @@ def rl_operators_breadth():
     """Defines the list of operators available to the system."""
     return [['ie', mov_ie], ['ic', mov_ic], ['id', mov_id]]
 
-def mov_ie_depth(estado, info=None):
+def mov_ie_depth(estado, info_node=None):
     """Performs a left exchange on the state."""
-    global limit
-    if (cadr(info) < limit):
+    if cadr(info_node) < LIMIT:
         debug_print(f"Left exchange: {cadr(estado)} - {car(estado)} - {caddr(estado)} - {cadddr(estado)}")
 
         return [cadr(estado), car(estado), caddr(estado), cadddr(estado)]
     else:
         return 'empty'
-          
 
-def mov_ic_depth(estado, info=None):
+
+def mov_ic_depth(estado, info_node=None):
     """Performs a central exchange on the state."""
-    global limit
-    if (cadr(info) < limit):
+    if cadr(info_node) < LIMIT:
         debug_print(f"Central Exchange: {car(estado)} - {caddr(estado)} - {cadr(estado)} - {cadddr(estado)}")
 
         return [car(estado), caddr(estado), cadr(estado), cadddr(estado)]
     else:
         return 'empty'
 
-def mov_id_depth(estado, info=None):
+def mov_id_depth(estado, info_node=None):
     """Performs a right exchange on the state."""
-    global limit
-    if (cadr(info) < limit):
+    if cadr(info_node) < LIMIT:
         debug_print(f"Right Exchange: {car(estado)} - {cadr(estado)} - {cadddr(estado)} - {caddr(estado)}")
 
         return [car(estado), cadr(estado), cadddr(estado), caddr(estado)]
@@ -349,30 +345,33 @@ def eliminate_selection(arbol):
 
     return [list_nodes_to_expand, arbol[1]]
 
-def initial_tree(estado, info):
+def initial_tree(estado, info_tree):
     """Initializes the tree with the starting state."""
-    infres = info(estado)
+    infres = info_tree(estado)
     if not isinstance(infres, list):
         infres = [infres]  # Ensure it's a list
     nodo = build_node(gensym(), estado, None, None, infres)
     return [[nodo], []]
 
-def build_node(ident, estado, id_padre, op, info):
+def build_node(identifier, estado, id_padre, op, info_node):
     """Construct a new node from state, father identifier, operation and information."""
-    if not isinstance(info, list):
-        raise TypeError(f"'info' must be a list, got {type(info).__name__}")
-    if (estado == 'empty'): return ['empty']
+    if not isinstance(info_node, list):
+        raise TypeError(f"'info' must be a list, got {type(info_node).__name__}")
+
+    if estado == 'empty':
+        return ['empty']
+
     if not isinstance(estado, list):
         raise ValueError(f"'estado' must be a list, got {type(estado).__name__}")
-    return [ident, estado, id_padre, op] + info
+    return [identifier, estado, id_padre, op] + info_node
 
-def expand_node(node, operators, funcion):
+def expand_node(node, operators_list, funcion):
     """
     Expand a new node for the operators.
 
     Args:
         node: The current node to expand. It is the father node.
-        operators: A list or collection of operators used to determine the expansion logic.
+        operators_list: A list or collection of operators used to determine the expansion logic.
         funcion: A callable or function that defines how the node should be processed or expanded.
 
     Returns:
@@ -385,8 +384,8 @@ def expand_node(node, operators, funcion):
     parent_operator = get_operator(node)
     generated_nodes = []
 
-    for op in operators:
-        if (parent_operator == car(op)):
+    for op in operators_list:
+        if parent_operator == car(op):
             generated_nodes.append(['empty'])
         else:
             # Get new identifier for the generated node
@@ -413,14 +412,18 @@ def get_state(nodo):
     # Unwrap if the node is accidentally nested
     if isinstance(nodo, list) and len(nodo) == 1:
         nodo = nodo[0]
+
     # After unwrapping, if we received an empty node, we raise 'empty'
     if nodo == 'empty':
-      return 'empty'
+        return 'empty'
+
     if not isinstance(nodo, list):
         print(f"Error: node is not a list, node: {nodo}, type: {type(nodo)}")
         raise ValueError(f"Node is not a list: {nodo}")
+
     if len(nodo) < 2:
         raise ValueError(f"Node has insufficient elements: {nodo}")
+
     return nodo[1]
 
 def get_id_father(nodo):
@@ -458,7 +461,6 @@ def initial_info(problem):
 
 if __name__ == "__main__":
     # Initialize global variables
-    global strategy
 
     try:
         initialize_global_variables("data/input/settings.yml")
